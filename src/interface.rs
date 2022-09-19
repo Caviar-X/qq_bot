@@ -5,7 +5,6 @@ use proc_qq::re_exports::{bytes, reqwest};
 use proc_qq::*;
 use rand::Rng;
 
-use std::fs::OpenOptions;
 use std::io::{BufRead, BufReader, Write};
 use std::mem;
 use std::path::Path;
@@ -55,11 +54,11 @@ async fn download_image(url: &str) -> Result<bytes::Bytes> {
 
 fn compare_md5(source_str: &str, md5_buf: &[u8]) -> Result<bool> {
     let compare = compute_md5sum(md5_buf);
-    let mut file = File::open(source_str).or_else(|_| File::create(source_str))?;
-    if file.metadata()?.len() == 0 {
-        writeln!(file,"{}",compare)?;
-        return Ok(true);
-    }
+
+    let mut options = File::options();
+    options.append(true).read(true).create(true);
+
+    let file = options.open(source_str)?;
     let mut reader = BufReader::new(file);
     let mut md5_str = "".into();
     while reader.read_line(&mut md5_str)? > 0 {
@@ -70,7 +69,7 @@ fn compare_md5(source_str: &str, md5_buf: &[u8]) -> Result<bool> {
     }
     mem::drop(reader);
     //
-    let mut file = OpenOptions::new().append(true).open(source_str)?;
+    let mut file = options.open(source_str)?;
     writeln!(file, "{}", compare)?;
     Ok(true)
 }
