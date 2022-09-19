@@ -4,21 +4,27 @@ use proc_qq::re_exports::ricq_core::msg::elem::RQElem;
 use proc_qq::re_exports::{bytes, reqwest};
 use proc_qq::*;
 use rand::Rng;
+
 use std::fs::OpenOptions;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::Path;
 use std::{fs::create_dir, fs::read, fs::read_dir, fs::File};
+
 pub const IMAGE_DIR: &str = "static";
+
 pub const MD5SUMS: &str = ".md5sums";
+
 fn compute_md5sum(buf: Vec<u8>) -> Result<String> {
     Ok(String::from_utf8(md5::compute(buf).0.to_vec())?)
 }
+
 fn is_jpeg(buf: Vec<u8>) -> bool {
     buf[0] == 0xff_u8
         && buf[1] == 0xd8_u8
         && buf[buf.len() - 2] == 0xff_u8
         && *buf.last().unwrap() == 0xd9_u8
 }
+
 fn count_image(image_dir: String) -> Result<usize> {
     Ok(read_dir(image_dir)?
         .filter(|z| {
@@ -31,6 +37,7 @@ fn count_image(image_dir: String) -> Result<usize> {
         })
         .count())
 }
+
 async fn download_image(url: String) -> Result<bytes::Bytes> {
     Ok(reqwest::ClientBuilder::new()
     .danger_accept_invalid_certs(true)
@@ -43,6 +50,7 @@ async fn download_image(url: String) -> Result<bytes::Bytes> {
     .bytes()
     .await?)
 }
+
 fn compare_md5(source_str: String, md5_buf: Vec<u8>) -> Result<bool> {
     let file = File::open(source_str.clone()).unwrap_or(File::create(source_str.clone())?);
     if file.try_clone()?.bytes().count() == 0 {
@@ -60,6 +68,7 @@ fn compare_md5(source_str: String, md5_buf: Vec<u8>) -> Result<bool> {
     writeln!(file, "{}", compare)?;
     Ok(true)
 }
+
 #[event]
 async fn listen(event: &GroupMessageEvent) -> Result<bool> {
     if event.clone().message_content().contains("入典") {
