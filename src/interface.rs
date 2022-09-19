@@ -10,7 +10,7 @@ use std::io::{BufRead, BufReader, Read, Write};
 use std::path::Path;
 use std::{fs::create_dir, fs::read, fs::read_dir, fs::File};
 
-pub const IMAGE_DIR: &str = "static";
+pub const IMAGE_DIR: &str = "images";
 
 pub const MD5SUMS: &str = ".md5sums";
 
@@ -119,11 +119,11 @@ async fn listen(event: &GroupMessageEvent) -> Result<bool> {
             return Ok(true);
         }
 
-        if !Path::new(IMAGE_DIR).exists() {
+        if read_dir(IMAGE_DIR).is_err() {
             create_dir(IMAGE_DIR)?;
         }
 
-        let mut f = File::create(format!("{}/{}.jpeg", IMAGE_DIR, count_image(IMAGE_DIR)?))?;
+        let mut f = File::create(format!("{}/{}.jpeg", IMAGE_DIR, count_image(IMAGE_DIR)?+1))?;
 
         f.write_all(&buf)?;
 
@@ -132,22 +132,24 @@ async fn listen(event: &GroupMessageEvent) -> Result<bool> {
             .await?;
 
         Ok(true)
-    } else if event.message_content() == "来只kf" {
+    } else if event.message_content().eq("典") {
+        eprintln!("sending message...");
         if read_dir(IMAGE_DIR)?.count() == 0 {
             event
                 .send_message_to_source("目前图库里还没有图片".parse_message_chain())
                 .await?;
         }
-        event
+         let img = event
             .upload_image_to_source(read(
-                format!(
+                dbg!(format!(
                     "{}/{}.jpeg",
                     IMAGE_DIR,
                     rand::thread_rng().gen_range(1..=(count_image(IMAGE_DIR)?))
-                )
-                .as_str(),
+                ))
+                .as_str()
             )?)
             .await?;
+            event.send_message_to_source(img.parse_message_chain()).await?;
         Ok(true)
     } else {
         Ok(false)
