@@ -1,22 +1,24 @@
-use proc_qq::{re_exports::ricq_core::protocol::version::*, *};
 use proc_qq::ClientBuilder;
 use proc_qq::DeviceSource::JsonFile;
+use proc_qq::{re_exports::ricq_core::protocol::version::*, *};
 use tracing::Level;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+
 mod interface;
+
 #[tokio::main]
 async fn main() {
-    let (mut uin,mut pwd) = (0,String::new());
-    for (cnt,i) in std::env::args().enumerate() {
+    let (mut uin, mut pwd) = (0, String::new());
+    for (cnt, i) in std::env::args().enumerate() {
         if i == "--uin" {
-            uin = std::env::args().nth(cnt+1).unwrap().parse().unwrap();
+            uin = std::env::args().nth(cnt + 1).unwrap().parse().unwrap();
         } else if i == "--password" {
-            pwd = std::env::args().nth(cnt+1).unwrap();
+            pwd = std::env::args().nth(cnt + 1).unwrap();
         }
     }
     init_tracing_subscriber();
     ClientBuilder::new()
-        .authentication(Authentication::UinPassword(uin,pwd))
+        .authentication(Authentication::UinPassword(uin, pwd))
         .device(JsonFile("device.json".into()))
         .version(&ANDROID_PHONE)
         .modules(vec![interface::module()])
@@ -28,6 +30,7 @@ async fn main() {
         .unwrap()
         .unwrap();
 }
+
 fn init_tracing_subscriber() {
     tracing_subscriber::registry()
         .with(
