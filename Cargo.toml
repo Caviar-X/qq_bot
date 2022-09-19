@@ -1,0 +1,22 @@
+[package]
+name = "qq_bot"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+proc_qq = "0.1.15"
+anyhow = "*"
+tokio = { version = "1", features = ["full"] }
+tracing = "*"
+tracing-subscriber = { version = "0.3", features = ["fmt"] }
+lazy-regex = "2.3.0"
+md5 = "0.7.0"
+reqwest = "*"
+rand = "0.8.5"
+[profile.release]
+opt-level = 3
+panic = "abort"
+lto = "thin"
+strip = true
