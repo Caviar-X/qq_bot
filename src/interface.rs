@@ -14,15 +14,16 @@ pub const IMAGE_DIR: &str = "images";
 
 pub const MD5SUMS: &str = ".md5sums";
 
-fn compute_md5sum(buf: &[u8]) -> Result<String> {
-    Ok(String::from_utf8(md5::compute(buf).0.to_vec())?)
+fn compute_md5sum(buf: &[u8]) -> String {
+    format!("{:x}",md5::compute(buf))
 }
 
-fn is_jpeg(buf: &[u8]) -> bool {
-    buf[0] == 0xff_u8
-        && buf[1] == 0xd8_u8
-        && buf[buf.len() - 2] == 0xff_u8
-        && *buf.last().unwrap() == 0xd9_u8
+fn is_image(buf : &[u8]) -> bool {
+    fn check(start: &[u8],buf: &[u8]) -> bool {
+        start == &buf[0..start.len()]
+    }
+    // gif jpeg png/apng
+    check(&[0x47u8, 0x49u8, 0x46u8],buf) || check(&[0xFF, 0xD8, 0xFF],buf) || check(&[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A],buf)
 }
 
 fn count_image(image_dir: impl AsRef<Path>) -> Result<usize> {
@@ -33,7 +34,7 @@ fn count_image(image_dir: impl AsRef<Path>) -> Result<usize> {
                 .file_name()
                 .to_str()
                 .unwrap()
-                .ends_with(".jpeg")
+                .ends_with(".image")
         })
         .count())
 }
@@ -52,18 +53,21 @@ async fn download_image(url: &str) -> Result<bytes::Bytes> {
 }
 
 fn compare_md5(source_str: &str, md5_buf: &[u8]) -> Result<bool> {
-    let file = File::open(source_str).or_else(|_| File::create(source_str))?;
+    let compare = compute_md5sum(md5_buf);
+    let mut file = File::open(source_str).or_else(|_| File::create(source_str))?;
     if file.try_clone()?.bytes().count() == 0 {
+        writeln!(file,"{}",compare)?;
         return Ok(true);
     }
     let mut reader = BufReader::new(file);
     let mut md5_str = "".into();
-    let compare = compute_md5sum(md5_buf)?;
     while reader.read_line(&mut md5_str).is_ok() {
         if md5_str == compare {
             return Ok(false);
         }
+        md5_str.clear();
     }
+    //
     let mut file = OpenOptions::new().append(true).open(source_str)?;
     writeln!(file, "{}", compare)?;
     Ok(true)
@@ -84,7 +88,7 @@ async fn listen(event: &GroupMessageEvent) -> Result<bool> {
                     None
                 }
             })
-            .unwrap_or(String::new());
+            .unwrap_or_default();
 
         if image_url.is_empty() {
             return Ok(true);
@@ -99,11 +103,10 @@ async fn listen(event: &GroupMessageEvent) -> Result<bool> {
                 return Ok(true);
             }
         };
-        eprintln!("download finished");
 
-        if !is_jpeg(&buf) {
+        if !is_image(&buf) {
             event
-                .send_message_to_source("不支持的格式".parse_message_chain())
+                .send_message_to_source("不支持的格式\n支持的格式为jpeg/jpg,png/apng,gif".parse_message_chain())
                 .await?;
             return Ok(true);
         }
@@ -123,7 +126,11 @@ async fn listen(event: &GroupMessageEvent) -> Result<bool> {
             create_dir(IMAGE_DIR)?;
         }
 
-        let mut f = File::create(format!("{}/{}.jpeg", IMAGE_DIR, count_image(IMAGE_DIR)?+1))?;
+        let mut f = File::create(format!(
+            "{}/{}.image",
+            IMAGE_DIR,
+            count_image(IMAGE_DIR)? + 1
+        ))?;
 
         f.write_all(&buf)?;
 
@@ -139,17 +146,19 @@ async fn listen(event: &GroupMessageEvent) -> Result<bool> {
                 .send_message_to_source("目前图库里还没有图片".parse_message_chain())
                 .await?;
         }
-         let img = event
+        let img = event
             .upload_image_to_source(read(
-                dbg!(format!(
-                    "{}/{}.jpeg",
+                format!(
+                    "{}/{}.image",
                     IMAGE_DIR,
                     rand::thread_rng().gen_range(1..=(count_image(IMAGE_DIR)?))
-                ))
-                .as_str()
+                )
+                .as_str(),
             )?)
             .await?;
-            event.send_message_to_source(img.parse_message_chain()).await?;
+        event
+            .send_message_to_source(img.parse_message_chain())
+            .await?;
         Ok(true)
     } else {
         Ok(false)
