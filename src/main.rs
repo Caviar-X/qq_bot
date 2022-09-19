@@ -10,7 +10,7 @@ async fn main() {
     for (cnt,i) in std::env::args().enumerate() {
         if i == "--uin" {
             uin = std::env::args().nth(cnt+1).unwrap().parse().unwrap();
-        } else if i == "--pass_md5" {
+        } else if i == "--password" {
             pwd = std::env::args().nth(cnt+1).unwrap();
         }
     }
