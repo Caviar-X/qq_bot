@@ -4,26 +4,24 @@ use proc_qq::re_exports::ricq_core::msg::elem::RQElem;
 use proc_qq::re_exports::{bytes, reqwest};
 use proc_qq::*;
 use rand::Rng;
-
-use std::io::{BufRead, BufReader, Write};
-use std::mem;
+use std::io::Write;
 use std::path::Path;
 use std::{fs::create_dir, fs::read, fs::read_dir, fs::File};
 
 pub const IMAGE_DIR: &str = "images";
 
-pub const MD5SUMS: &str = ".md5sums";
-
 fn compute_md5sum(buf: &[u8]) -> String {
-    format!("{:x}",md5::compute(buf))
+    format!("{:x}", md5::compute(buf))
 }
 
-fn is_image(buf : &[u8]) -> bool {
-    fn check(start: &[u8],buf: &[u8]) -> bool {
+fn is_image(buf: &[u8]) -> bool {
+    fn check(start: &[u8], buf: &[u8]) -> bool {
         start == &buf[0..start.len()]
     }
     // gif jpeg png/apng
-    check(&[0x47u8, 0x49u8, 0x46u8],buf) || check(&[0xFF, 0xD8, 0xFF],buf) || check(&[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A],buf)
+    check(&[0x47u8, 0x49u8, 0x46u8], buf)
+        || check(&[0xFF, 0xD8, 0xFF], buf)
+        || check(&[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A], buf)
 }
 
 fn count_image(image_dir: impl AsRef<Path>) -> Result<usize> {
@@ -52,26 +50,17 @@ async fn download_image(url: &str) -> Result<bytes::Bytes> {
     .await?)
 }
 
-fn compare_md5(source_str: &str, md5_buf: &[u8]) -> Result<bool> {
-    let compare = compute_md5sum(md5_buf);
+fn get_all_md5(_image_dir: impl AsRef<Path>) -> Result<Vec<String>> {
+    /*let all = Vec::new();
+    for i in read_dir(image_dir)? {
+        let i : String  = i?.file_name().into_string().unwrap_or_default();
+        if i.is_empty() {
 
-    let mut options = File::options();
-    options.append(true).read(true).create(true);
-
-    let file = options.open(source_str)?;
-    let mut reader = BufReader::new(file);
-    let mut md5_str = "".into();
-    while reader.read_line(&mut md5_str)? > 0 {
-        if md5_str.trim_end() == compare {
-            return Ok(false);
         }
-        md5_str.clear();
     }
-    mem::drop(reader);
-    //
-    let mut file = options.open(source_str)?;
-    writeln!(file, "{}", compare)?;
-    Ok(true)
+
+    Ok(all)*/
+    todo!()
 }
 
 #[event]
@@ -89,7 +78,24 @@ async fn listen(event: &GroupMessageEvent) -> Result<bool> {
                     None
                 }
             })
-            .unwrap_or_default();
+            .unwrap_or_else(|| {
+                if let Some(reply) = message_chain.reply() {
+                    reply
+                        .elements
+                        .0
+                        .iter()
+                        .find_map(|m| {
+                            if let RQElem::GroupImage(image) = m.clone().into() {
+                                Some(image.url())
+                            } else {
+                                None
+                            }
+                        })
+                        .unwrap_or_default()
+                } else {
+                    String::new()
+                }
+            });
 
         if image_url.is_empty() {
             return Ok(true);
@@ -107,12 +113,14 @@ async fn listen(event: &GroupMessageEvent) -> Result<bool> {
 
         if !is_image(&buf) {
             event
-                .send_message_to_source("不支持的格式\n支持的格式为jpeg/jpg,png/apng,gif".parse_message_chain())
+                .send_message_to_source(
+                    "不支持的格式\n支持的格式为jpeg/jpg,png/apng,gif".parse_message_chain(),
+                )
                 .await?;
             return Ok(true);
         }
 
-        if let Ok(false) = compare_md5(MD5SUMS, &buf) {
+        /*if let Ok(false) = compare_md5(MD5SUMS, &buf) {
             event
                 .send_message_to_source(
                     "已检测到与此图片MD5相同的图片,不予添加"
@@ -121,32 +129,33 @@ async fn listen(event: &GroupMessageEvent) -> Result<bool> {
                 )
                 .await?;
             return Ok(true);
-        }
-
+        }*/
         if read_dir(IMAGE_DIR).is_err() {
             create_dir(IMAGE_DIR)?;
         }
-
-        let mut f = File::create(format!(
-            "{}/{}.image",
-            IMAGE_DIR,
-            count_image(IMAGE_DIR)? + 1
-        ))?;
-
+        if File::open(format!("{}/{}.image", IMAGE_DIR, compute_md5sum(&buf))).is_ok() {
+            event
+                .send_message_to_source(
+                    "已检测到与此图片MD5相同的图片,不予添加"
+                        .parse_message_chain()
+                        .append(event.upload_image_to_source(buf.to_vec()).await?),
+                )
+                .await?;
+        }
+        let mut f = File::create(format!("{}/{}.image", IMAGE_DIR, compute_md5sum(&buf)))?;
         f.write_all(&buf)?;
-
         event
             .send_message_to_source("添加成功".parse_message_chain())
             .await?;
 
         Ok(true)
     } else if event.message_content().eq("典") {
-        eprintln!("sending message...");
         if read_dir(IMAGE_DIR)?.count() == 0 {
             event
                 .send_message_to_source("目前图库里还没有图片".parse_message_chain())
                 .await?;
         }
+
         let img = event
             .upload_image_to_source(read(
                 format!(
