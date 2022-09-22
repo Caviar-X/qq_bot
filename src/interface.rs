@@ -76,7 +76,7 @@ async fn listen(event: &GroupMessageEvent) -> Result<bool> {
                         .0
                         .iter()
                         .find_map(|m| {
-                            if let RQElem::GroupImage(image) = m.clone().into() {
+                            if let RQElem::GroupImage(image) = dbg!(m.clone().into()) {
                                 Some(image.url())
                             } else {
                                 None
@@ -121,6 +121,7 @@ async fn listen(event: &GroupMessageEvent) -> Result<bool> {
                         .append(event.upload_image_to_source(buf.to_vec()).await?),
                 )
                 .await?;
+            return Ok(true);
         }
         let mut f = File::create(format!("{}/{}.image", IMAGE_DIR, compute_md5sum(&buf)))?;
         f.write_all(&buf)?;
