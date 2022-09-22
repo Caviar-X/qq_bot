@@ -1,7 +1,6 @@
 use anyhow::Result;
 use proc_qq::re_exports::ricq::client::event::*;
-use proc_qq::re_exports::ricq_core::msg::elem::RQElem;
-use proc_qq::re_exports::{bytes, reqwest};
+use proc_qq::re_exports::{bytes, reqwest,ricq_core::msg::elem::RQElem};
 use proc_qq::*;
 use rand::Rng;
 use std::io::Write;
@@ -24,19 +23,6 @@ fn is_image(buf: &[u8]) -> bool {
         || check(&[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A], buf)
 }
 
-fn count_image(image_dir: impl AsRef<Path>) -> Result<usize> {
-    Ok(read_dir(image_dir)?
-        .filter(|z| {
-            z.as_ref()
-                .unwrap()
-                .file_name()
-                .to_str()
-                .unwrap()
-                .ends_with(".image")
-        })
-        .count())
-}
-
 async fn download_image(url: &str) -> Result<bytes::Bytes> {
     Ok(reqwest::ClientBuilder::new()
     .danger_accept_invalid_certs(true)
@@ -50,17 +36,22 @@ async fn download_image(url: &str) -> Result<bytes::Bytes> {
     .await?)
 }
 
-fn get_all_md5(_image_dir: impl AsRef<Path>) -> Result<Vec<String>> {
-    /*let all = Vec::new();
+fn get_all_md5(image_dir: impl AsRef<Path>) -> Result<Vec<String>> {
+    let mut all: Vec<String> = Vec::new();
     for i in read_dir(image_dir)? {
-        let i : String  = i?.file_name().into_string().unwrap_or_default();
-        if i.is_empty() {
-
+        let i: String = i?.file_name().into_string().unwrap_or_default();
+        if !i.is_empty() {
+            all.push(
+                i.get(..i.chars().position(|x| x == '.').unwrap_or_default())
+                    .unwrap_or_default()
+                    .into(),
+            );
         }
     }
-
-    Ok(all)*/
-    todo!()
+    Ok(all
+        .into_iter()
+        .filter(|x| !x.is_empty())
+        .collect::<Vec<String>>())
 }
 
 #[event]
@@ -119,17 +110,6 @@ async fn listen(event: &GroupMessageEvent) -> Result<bool> {
                 .await?;
             return Ok(true);
         }
-
-        /*if let Ok(false) = compare_md5(MD5SUMS, &buf) {
-            event
-                .send_message_to_source(
-                    "已检测到与此图片MD5相同的图片,不予添加"
-                        .parse_message_chain()
-                        .append(event.upload_image_to_source(buf).await?),
-                )
-                .await?;
-            return Ok(true);
-        }*/
         if read_dir(IMAGE_DIR).is_err() {
             create_dir(IMAGE_DIR)?;
         }
@@ -155,16 +135,13 @@ async fn listen(event: &GroupMessageEvent) -> Result<bool> {
                 .send_message_to_source("目前图库里还没有图片".parse_message_chain())
                 .await?;
         }
-
+        let all_file: Vec<String> = get_all_md5(IMAGE_DIR)?;
         let img = event
-            .upload_image_to_source(read(
-                format!(
-                    "{}/{}.image",
-                    IMAGE_DIR,
-                    rand::thread_rng().gen_range(1..=(count_image(IMAGE_DIR)?))
-                )
-                .as_str(),
-            )?)
+            .upload_image_to_source(read(format!(
+                "{}/{}.image",
+                IMAGE_DIR,
+                all_file[rand::thread_rng().gen_range(0..all_file.len())]
+            ))?)
             .await?;
         event
             .send_message_to_source(img.parse_message_chain())

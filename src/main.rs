@@ -3,7 +3,6 @@ use proc_qq::DeviceSource::JsonFile;
 use proc_qq::{re_exports::ricq_core::protocol::version::*, *};
 use tracing::Level;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-
 mod interface;
 
 #[tokio::main]
