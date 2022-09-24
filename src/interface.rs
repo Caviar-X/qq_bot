@@ -144,18 +144,6 @@ async fn listen(event: &GroupMessageEvent) -> Result<bool> {
             .await?;
         Ok(true)
     } else if event.clone().message_content().contains("出典") {
-        if !event
-            .client
-            .get_group_admin_list(event.inner.group_code)
-            .await?
-            .get(&event.inner.from_uin)
-            .is_some()
-        {
-            event
-                .send_message_to_source("只有管理员才可以出典".parse_message_chain())
-                .await?;
-            return Ok(true);
-        }
         let message_chain = event.message_chain();
         let image_url = message_chain
             .0
@@ -169,6 +157,18 @@ async fn listen(event: &GroupMessageEvent) -> Result<bool> {
             })
             .unwrap_or_default();
         if image_url.is_empty() {
+            return Ok(true);
+        }
+        if !event
+            .client
+            .get_group_admin_list(event.inner.group_code)
+            .await?
+            .get(&event.inner.from_uin)
+            .is_some()
+        {
+            event
+                .send_message_to_source("只有管理员才可以出典".parse_message_chain())
+                .await?;
             return Ok(true);
         }
         let file = format!(
