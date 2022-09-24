@@ -5,7 +5,7 @@ use proc_qq::*;
 use rand::Rng;
 use std::io::Write;
 use std::path::Path;
-use std::{fs::create_dir, fs::read, fs::read_dir, fs::File};
+use std::{fs::create_dir, fs::create_dir_all, fs::read, fs::read_dir, fs::File};
 
 pub const IMAGE_DIR: &str = "images";
 
@@ -58,7 +58,6 @@ fn get_all_md5(image_dir: impl AsRef<Path>) -> Result<Vec<String>> {
 async fn listen(event: &GroupMessageEvent) -> Result<bool> {
     if event.clone().message_content().contains("入典") {
         let message_chain = event.message_chain();
-
         let image_url = message_chain
             .0
             .iter()
@@ -68,26 +67,7 @@ async fn listen(event: &GroupMessageEvent) -> Result<bool> {
                 } else {
                     None
                 }
-            })
-            .unwrap_or_else(|| {
-                if let Some(reply) = message_chain.reply() {
-                    reply
-                        .elements
-                        .0
-                        .iter()
-                        .find_map(|m| {
-                            if let RQElem::GroupImage(image) = dbg!(m.clone().into()) {
-                                Some(image.url())
-                            } else {
-                                None
-                            }
-                        })
-                        .unwrap_or_default()
-                } else {
-                    String::new()
-                }
-            });
-
+            }).unwrap_or_default();
         if image_url.is_empty() {
             return Ok(true);
         }
@@ -110,10 +90,10 @@ async fn listen(event: &GroupMessageEvent) -> Result<bool> {
                 .await?;
             return Ok(true);
         }
-        if read_dir(IMAGE_DIR).is_err() {
-            create_dir(IMAGE_DIR)?;
+        if read_dir(format!("{}/{}",IMAGE_DIR,event.inner.group_code)).is_err() {
+            create_dir_all(format!("{}/{}",IMAGE_DIR,event.inner.group_code))?;
         }
-        if File::open(format!("{}/{}.image", IMAGE_DIR, compute_md5sum(&buf))).is_ok() {
+        if File::open(format!("{}/{}/{}.image", IMAGE_DIR,event.inner.group_code, compute_md5sum(&buf))).is_ok() {
             event
                 .send_message_to_source(
                     "已检测到与此图片MD5相同的图片,不予添加"
@@ -123,7 +103,7 @@ async fn listen(event: &GroupMessageEvent) -> Result<bool> {
                 .await?;
             return Ok(true);
         }
-        let mut f = File::create(format!("{}/{}.image", IMAGE_DIR, compute_md5sum(&buf)))?;
+        let mut f = File::create(format!("{}/{}/{}.image", IMAGE_DIR,event.inner.group_code, compute_md5sum(&buf)))?;
         f.write_all(&buf)?;
         event
             .send_message_to_source("添加成功".parse_message_chain())
@@ -131,16 +111,17 @@ async fn listen(event: &GroupMessageEvent) -> Result<bool> {
 
         Ok(true)
     } else if event.message_content().eq("典") {
-        if read_dir(IMAGE_DIR)?.count() == 0 {
+        if read_dir(format!("{}/{}",IMAGE_DIR,event.inner.group_code))?.count() == 0 {
             event
                 .send_message_to_source("目前图库里还没有图片".parse_message_chain())
                 .await?;
         }
-        let all_file: Vec<String> = get_all_md5(IMAGE_DIR)?;
+        let all_file: Vec<String> = get_all_md5(format!("{}/{}",IMAGE_DIR,event.inner.group_code))?;
         let img = event
             .upload_image_to_source(read(format!(
-                "{}/{}.image",
+                "{}/{}/{}.image",
                 IMAGE_DIR,
+                event.inner.group_code,
                 all_file[rand::thread_rng().gen_range(0..all_file.len())]
             ))?)
             .await?;
