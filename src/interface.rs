@@ -10,7 +10,6 @@ use std::path::Path;
 use std::{fs::create_dir_all, fs::read, fs::read_dir, fs::remove_file, fs::File};
 
 pub const IMAGE_DIR: &str = "images";
-
 fn compute_md5sum(buf: &[u8]) -> String {
     format!("{:x}", md5::compute(buf))
 }
@@ -184,12 +183,15 @@ async fn listen(event: &GroupMessageEvent) -> Result<bool> {
                 .send_message_to_source("无法删除不存在的图片".parse_message_chain())
                 .await?;
         }
+        event
+            .send_message_to_source("出典成功".parse_message_chain())
+            .await?;
         Ok(true)
     } else {
         Ok(false)
     }
 }
 
-pub(crate) fn module() -> Module {
+pub fn module() -> Module {
     module!("listen", "l", listen)
 }

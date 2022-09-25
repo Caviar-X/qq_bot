@@ -1,9 +1,9 @@
 use proc_qq::ClientBuilder;
 use proc_qq::DeviceSource::JsonFile;
 use proc_qq::{re_exports::ricq_core::protocol::version::*, *};
+use qq_bot::interface::module;
 use tracing::Level;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-mod interface;
 
 #[tokio::main]
 async fn main() {
@@ -20,7 +20,7 @@ async fn main() {
         .authentication(Authentication::UinPassword(uin, pwd))
         .device(JsonFile("device.json".into()))
         .version(&ANDROID_PHONE)
-        .modules(vec![interface::module()])
+        .modules(vec![module()])
         .build()
         .await
         .unwrap()
