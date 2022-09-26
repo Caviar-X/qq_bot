@@ -1,15 +1,15 @@
 use anyhow::*;
 use bollard::container::{Config, CreateContainerOptions, ListContainersOptions};
 use bollard::exec::*;
-use std::string::String;
 use bollard::*;
+use futures_util::StreamExt;
 use std::collections::HashMap;
+use std::string::String;
+use tokio::io::AsyncWriteExt;
 use tokio::task::spawn;
-use tokio::io::{AsyncWrite,AsyncWriteExt};
 const CONTAINER_NAME: &'static str = "ghci_container";
 const IMAGE_NAME: &'static str = "archlinux";
-/// 5 seconds
-pub const STOP_TIMEOUT: i64 = 5;
+const LIMIT_BYTE: usize = 1000;
 macro_rules! hashmap {
     ($($k : expr, $v : expr),*) => {
         {
@@ -42,33 +42,14 @@ pub async fn get_id_by_name(name: String) -> Result<String> {
         .ok_or_else(|| anyhow!("Error occoured while getting id"))?
         .into())
 }
-pub async fn create_container(
-    name: String,
-    image_name: String,
-    stop_timeout: i64,
-) -> Result<String> {
-    Ok(Docker::connect_with_local_defaults()?
-        .create_container(
-            Some(CreateContainerOptions::<String> { name }),
-            Config::<String> {
-                attach_stdin: Some(true),
-                attach_stdout: Some(true),
-                open_stdin: Some(true),
-                image: Some(image_name),
-                stop_timeout: Some(stop_timeout),
-                ..Default::default()
-            },
-        )
-        .await?
-        .id)
-}
 pub async fn execute(expr: String) -> Result<String> {
     let docker = Docker::connect_with_local_defaults()?;
-    let mut id = String::new();
+    let id;
     if !is_container_running(get_id_by_name(CONTAINER_NAME.into()).await?).await? {
-        id = create_container(CONTAINER_NAME.into(), IMAGE_NAME.into(), STOP_TIMEOUT).await?;
+        return Err(anyhow!("Match container is not running!"));
+    } else {
+        id = get_id_by_name(CONTAINER_NAME.into()).await?;
     }
-    id = get_id_by_name(CONTAINER_NAME.into()).await?;
     let exec = docker
         .create_exec(
             id.as_str(),
@@ -82,13 +63,23 @@ pub async fn execute(expr: String) -> Result<String> {
         )
         .await?
         .id;
-    if let StartExecResults::Attached { input: mut i,mut output}  = docker.start_exec(&exec,None).await? {
+    let mut output = String::new();
+    if let StartExecResults::Attached {
+        input: mut i,
+        output: mut o,
+    } = docker.start_exec(&exec, None).await?
+    {
         spawn(async move {
             i.write_all(expr.as_bytes()).await.ok();
         });
+        while let Some(core::result::Result::Ok(op)) = o.next().await {
+            output.push_str(op.to_string().as_str());
+            if output.len() >= LIMIT_BYTE {
+                return Ok(format!("结果大于{}B,不予展示",LIMIT_BYTE));
+            }
+        }
     } else {
         return Err(anyhow!("Cannot attach io in the docker!"));
     }
-    Ok(String::new())
-
+    Ok(output)
 }

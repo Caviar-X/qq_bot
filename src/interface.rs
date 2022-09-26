@@ -187,7 +187,10 @@ async fn listen(event: &GroupMessageEvent) -> Result<bool> {
             .send_message_to_source("出典成功".parse_message_chain())
             .await?;
         Ok(true)
-    } else {
+    } else if event.clone().message_content().starts_with("!ghci") {
+        Ok(true)
+    }
+    else {
         Ok(false)
     }
 }
