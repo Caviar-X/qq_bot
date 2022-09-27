@@ -1,5 +1,5 @@
 use anyhow::*;
-use bollard::container::{Config, CreateContainerOptions, ListContainersOptions};
+use bollard::container::ListContainersOptions;
 use bollard::exec::*;
 use bollard::*;
 use futures_util::StreamExt;
@@ -7,8 +7,7 @@ use std::collections::HashMap;
 use std::string::String;
 use tokio::io::AsyncWriteExt;
 use tokio::task::spawn;
-const CONTAINER_NAME: &'static str = "ghci_container";
-const IMAGE_NAME: &'static str = "archlinux";
+const CONTAINER_NAME: &'static str = "ghci_con";
 const LIMIT_BYTE: usize = 1000;
 macro_rules! hashmap {
     ($($k : expr, $v : expr),*) => {
@@ -19,19 +18,11 @@ macro_rules! hashmap {
         }
     };
 }
-pub async fn is_container_running(id: String) -> Result<bool> {
-    Ok(!Docker::connect_with_local_defaults()?
-        .list_containers(Some(ListContainersOptions::<String> {
-            filters: hashmap!("id".into(), vec![id]),
-            ..Default::default()
-        }))
-        .await?
-        .is_empty())
-}
+
 pub async fn get_id_by_name(name: String) -> Result<String> {
     Ok(Docker::connect_with_local_defaults()?
         .list_containers(Some(ListContainersOptions::<String> {
-            filters: hashmap!("name".into(), vec![name]),
+            filters: hashmap!("name".into(), vec![format!("/{}", name)]),
             ..Default::default()
         }))
         .await?
@@ -44,12 +35,7 @@ pub async fn get_id_by_name(name: String) -> Result<String> {
 }
 pub async fn execute(expr: String) -> Result<String> {
     let docker = Docker::connect_with_local_defaults()?;
-    let id;
-    if !is_container_running(get_id_by_name(CONTAINER_NAME.into()).await?).await? {
-        return Err(anyhow!("Match container is not running!"));
-    } else {
-        id = get_id_by_name(CONTAINER_NAME.into()).await?;
-    }
+    let id = get_id_by_name(CONTAINER_NAME.into()).await?;
     let exec = docker
         .create_exec(
             id.as_str(),
@@ -71,15 +57,17 @@ pub async fn execute(expr: String) -> Result<String> {
     {
         spawn(async move {
             i.write_all(expr.as_bytes()).await.ok();
+            i.write_all(b"\n").await.ok();
+            i.write_all(b":quit").await.ok();
         });
         while let Some(core::result::Result::Ok(op)) = o.next().await {
-            output.push_str(op.to_string().as_str());
+            output.push_str(dbg!(op.to_string().as_str()));
             if output.len() >= LIMIT_BYTE {
-                return Ok(format!("结果大于{}B,不予展示",LIMIT_BYTE));
+                return Ok(format!("结果大于{}B,不予展示", LIMIT_BYTE));
             }
         }
+        return Ok(output);
     } else {
         return Err(anyhow!("Cannot attach io in the docker!"));
     }
-    Ok(output)
 }

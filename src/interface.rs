@@ -8,8 +8,8 @@ use rand::Rng;
 use std::io::Write;
 use std::path::Path;
 use std::{fs::create_dir_all, fs::read, fs::read_dir, fs::remove_file, fs::File};
-
 pub const IMAGE_DIR: &str = "images";
+use crate::ghci::*;
 fn compute_md5sum(buf: &[u8]) -> String {
     format!("{:x}", md5::compute(buf))
 }
@@ -188,9 +188,18 @@ async fn listen(event: &GroupMessageEvent) -> Result<bool> {
             .await?;
         Ok(true)
     } else if event.clone().message_content().starts_with("!ghci") {
+        let content = event.message_content();
+        let expr = content.get("!ghci".len()..).unwrap_or_default();
+        if expr.is_empty() {
+            event
+                .send_message_to_source("表达式为空或有不合法字符".parse_message_chain())
+                .await?;
+        }
+        event
+            .send_message_to_source(dbg!(execute(expr.into()).await?).parse_message_chain())
+            .await?;
         Ok(true)
-    }
-    else {
+    } else {
         Ok(false)
     }
 }
