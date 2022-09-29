@@ -176,16 +176,17 @@ async fn listen(event: &GroupMessageEvent) -> Result<bool> {
             event.inner.group_code,
             compute_md5sum(&download_image(image_url.as_str()).await?)
         );
-        if File::open(file.clone()).is_ok() {
-            remove_file(file)?;
+        if let Err(e) = remove_file(file) {
+            event
+                .send_message_to_source("删除失败".parse_message_chain())
+                .await?;
+            eprintln!("Error : {:#?}", e);
         } else {
             event
-                .send_message_to_source("无法删除不存在的图片".parse_message_chain())
+                .send_message_to_source("出典成功".parse_message_chain())
                 .await?;
         }
-        event
-            .send_message_to_source("出典成功".parse_message_chain())
-            .await?;
+
         Ok(true)
     } else if event.clone().message_content().starts_with("!ghci") {
         let content = event.message_content();
@@ -195,9 +196,39 @@ async fn listen(event: &GroupMessageEvent) -> Result<bool> {
                 .send_message_to_source("表达式为空或有不合法字符".parse_message_chain())
                 .await?;
         }
-        event
-            .send_message_to_source(dbg!(execute(expr.into()).await?).parse_message_chain())
-            .await?;
+        let output = execute(expr.into())?;
+        if !output.status.success() {
+            event
+                .send_message_to_source("程序超时".parse_message_chain())
+                .await?;
+        } else {
+            let message = String::from_utf8(output.stdout)?;
+            if message.len() >= LIMIT_BYTE {
+                event
+                    .send_message_to_source(
+                        format!("输出大于等于{}B,不予展示", LIMIT_BYTE).parse_message_chain(),
+                    )
+                    .await?;
+            }
+            let mut res = String::new();
+            for i in message.lines() {
+                if i.trim() == "GHCi, version 9.0.2: https://www.haskell.org/ghc/  :? for help" {
+                    continue;
+                }
+                let t: String = i.replace("ghci>", "").trim().into();
+                if !t.trim().is_empty() && t.trim() != "Leaving GHCi." {
+                    res.push_str(t.as_str());
+                    res.push_str("\n");
+                }
+            }
+            event
+                .send_message_to_source(res.parse_message_chain())
+                .await?;
+            event
+                .send_message_to_source(String::from_utf8(output.stderr)?.parse_message_chain())
+                .await?;
+        }
+
         Ok(true)
     } else {
         Ok(false)
