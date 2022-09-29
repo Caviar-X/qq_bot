@@ -211,6 +211,7 @@ async fn listen(event: &GroupMessageEvent) -> Result<bool> {
                     .await?;
             }
             let mut res = String::new();
+            //TODO: use ghcirc to get rid of unessary message
             for i in message.lines() {
                 if i.trim() == "GHCi, version 9.0.2: https://www.haskell.org/ghc/  :? for help" {
                     continue;
