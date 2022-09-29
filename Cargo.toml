@@ -16,11 +16,9 @@ lazy-regex = "2.3.0"
 md5 = "0.7.0"
 reqwest = "*"
 rand = "0.8.5"
-bollard = "0.13.0"
-futures-util = "*"
 [profile.release]
 opt-level = 3
 panic = "abort"
 lto = "thin"
 strip = true
-
+codegen-units = 1
