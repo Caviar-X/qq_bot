@@ -223,10 +223,10 @@ async fn listen(event: &GroupMessageEvent) -> Result<bool> {
                 }
             }
             event
-                .send_message_to_source(res.parse_message_chain())
+                .send_message_to_source(res.trim().parse_message_chain())
                 .await?;
             event
-                .send_message_to_source(String::from_utf8(output.stderr)?.parse_message_chain())
+                .send_message_to_source(String::from_utf8(output.stderr)?.trim().parse_message_chain())
                 .await?;
         }
 

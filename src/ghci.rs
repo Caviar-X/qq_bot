@@ -12,6 +12,7 @@ pub fn execute(expr: String) -> Result<Output> {
         )
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
         .spawn()?;
     let mut stdin = command
         .stdin
