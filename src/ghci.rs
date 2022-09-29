@@ -1,13 +1,12 @@
 use anyhow::*;
 use std::io::Write;
 use std::process::*;
-const CONTAINER_NAME: &'static str = "ghci_con";
 pub const LIMIT_BYTE: usize = 1000;
 const TIME_OUT: u8 = 3;
 pub fn execute(expr: String) -> Result<Output> {
-    let mut command = Command::new("docker")
+    let mut command = Command::new("timeout")
         .args(
-            format!("exec -i {} timeout -s 5 {} ghci", CONTAINER_NAME, TIME_OUT)
+            format!("-s 5 {} ghci", TIME_OUT)
                 .split_whitespace()
                 .collect::<Vec<&str>>(),
         )
