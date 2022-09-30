@@ -53,7 +53,7 @@ fn get_all_md5(image_dir: impl AsRef<Path>) -> Result<Vec<String>> {
 
 #[event]
 async fn listen(event: &GroupMessageEvent) -> Result<bool> {
-    if event.clone().message_content().contains("入典") {
+    if event.message_content().contains("入典") {
         let message_chain = event.message_chain();
         let image_url = message_chain
             .0
@@ -142,7 +142,7 @@ async fn listen(event: &GroupMessageEvent) -> Result<bool> {
             .send_message_to_source(img.parse_message_chain())
             .await?;
         Ok(true)
-    } else if event.clone().message_content().contains("出典") {
+    } else if event.message_content().contains("出典") {
         let message_chain = event.message_chain();
         let image_url = message_chain
             .0
@@ -188,7 +188,7 @@ async fn listen(event: &GroupMessageEvent) -> Result<bool> {
         }
 
         Ok(true)
-    } else if event.clone().message_content().starts_with("!ghci") {
+    } else if event.message_content().starts_with("!ghci") {
         let content = event.message_content();
         let expr = content.get("!ghci".len()..).unwrap_or_default();
         if expr.is_empty() {
