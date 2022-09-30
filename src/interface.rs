@@ -55,6 +55,45 @@ fn get_all_md5(image_dir: impl AsRef<Path>) -> Result<Vec<String>> {
         .collect())
 }
 
+async fn ghci(event: &GroupMessageEvent) -> Result<bool> {
+    let content = event.message_content();
+
+    let Some(expr) = content.get("!ghci".len()..) else {
+        event
+            .send_message_to_source("表达式为空或有不合法字符".parse_message_chain())
+            .await?;
+        return Ok(true)
+    };
+
+    let output = execute(expr.into())?;
+
+    match process_output(output) {
+        ExecutionResult::Output { stdout, stderr } => {
+            event
+                .send_message_to_source(stdout.trim().parse_message_chain())
+                .await?;
+            event
+                .send_message_to_source(stderr.trim().parse_message_chain())
+                .await?;
+        }
+        ExecutionResult::Timeout => {
+            event
+                .send_message_to_source("程序超时".parse_message_chain())
+                .await?;
+        }
+        ExecutionResult::LengthExceeded => {
+            event
+                .send_message_to_source(
+                    format!("输出大于等于{}B,不予展示", LIMIT_BYTE).parse_message_chain(),
+                )
+                .await?;
+        }
+        ExecutionResult::OtherError(e) => anyhow::bail!(e),
+    }
+
+    Ok(true)
+}
+
 #[event]
 async fn listen(event: &GroupMessageEvent) -> Result<bool> {
     if event.message_content().contains("入典") {
@@ -193,52 +232,7 @@ async fn listen(event: &GroupMessageEvent) -> Result<bool> {
 
         Ok(true)
     } else if event.message_content().starts_with("!ghci") {
-        let content = event.message_content();
-        let expr = content.get("!ghci".len()..).unwrap_or_default();
-        if expr.is_empty() {
-            event
-                .send_message_to_source("表达式为空或有不合法字符".parse_message_chain())
-                .await?;
-        }
-        let output = execute(expr.into())?;
-        if !output.status.success() {
-            event
-                .send_message_to_source("程序超时".parse_message_chain())
-                .await?;
-        } else {
-            let message = String::from_utf8(output.stdout)?;
-            if message.len() >= LIMIT_BYTE {
-                event
-                    .send_message_to_source(
-                        format!("输出大于等于{}B,不予展示", LIMIT_BYTE).parse_message_chain(),
-                    )
-                    .await?;
-            }
-            let mut res = String::new();
-            //TODO: use ghcirc to get rid of unessary message
-            for i in message.lines() {
-                if i.trim() == "GHCi, version 9.0.2: https://www.haskell.org/ghc/  :? for help" {
-                    continue;
-                }
-                let t: String = i.replace("ghci>", "").trim().into();
-                if !t.trim().is_empty() && t.trim() != "Leaving GHCi." {
-                    res.push_str(t.as_str());
-                    res.push_str("\n");
-                }
-            }
-            event
-                .send_message_to_source(res.trim().parse_message_chain())
-                .await?;
-            event
-                .send_message_to_source(
-                    String::from_utf8(output.stderr)?
-                        .trim()
-                        .parse_message_chain(),
-                )
-                .await?;
-        }
-
-        Ok(true)
+        ghci(event).await
     } else {
         Ok(false)
     }
