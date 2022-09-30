@@ -5,11 +5,15 @@ use proc_qq::re_exports::ricq::client::event::*;
 use proc_qq::re_exports::{bytes, reqwest, ricq_core::msg::elem::RQElem};
 use proc_qq::*;
 use rand::Rng;
+
+use std::fs::{create_dir_all, read, read_dir, remove_file, File};
 use std::io::Write;
 use std::path::Path;
-use std::{fs::create_dir_all, fs::read, fs::read_dir, fs::remove_file, fs::File};
-pub const IMAGE_DIR: &str = "images";
+
 use crate::ghci::*;
+
+pub const IMAGE_DIR: &str = "images";
+
 fn compute_md5sum(buf: &[u8]) -> String {
     format!("{:x}", md5::compute(buf))
 }
@@ -226,7 +230,11 @@ async fn listen(event: &GroupMessageEvent) -> Result<bool> {
                 .send_message_to_source(res.trim().parse_message_chain())
                 .await?;
             event
-                .send_message_to_source(String::from_utf8(output.stderr)?.trim().parse_message_chain())
+                .send_message_to_source(
+                    String::from_utf8(output.stderr)?
+                        .trim()
+                        .parse_message_chain(),
+                )
                 .await?;
         }
 
