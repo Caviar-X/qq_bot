@@ -36,6 +36,14 @@ chmod +x qq_bot #提权，若有此权限不用执行
 
 关于滑块请遵循proc_qq的步骤
 
+使用 GHCi 功能时请确保 GHCi 的 `prompt` 和 `prompt-cont` 设置为空。 
+可以通过载入对应的 `.ghci` 文件实现，例如：
+```
+:set prompt ""
+:set prompt-cont ""
+```
+具体使用方式请查阅 [GHCi 文档](https://downloads.haskell.org/ghc/latest/docs/users_guide/ghci.html#the-ghci-and-haskeline-files)
+
 ## 开源协议
 
 根据AGPL协议开源(因为`ricq`也是AGPL协议)
