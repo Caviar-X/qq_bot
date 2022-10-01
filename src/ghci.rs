@@ -71,11 +71,11 @@ pub fn process_output(output: Output) -> ExecutionResult {
 /// :set prompt-cont ""
 /// ```
 fn process_stdout_string(output: &str) -> String {
-    let lines: Vec<_> = output.lines().skip(2).collect();
-    lines
-        .split_last()
-        .map(|(_, rest)| rest.join("\n"))
-        .unwrap_or_else(|| "".into())
+    output
+        .trim()
+        .strip_suffix("Leaving GHCi.")
+        .map(|o| o.lines().skip(2).intersperse("\n").collect())
+        .unwrap_or_default()
 }
 
 #[cfg(test)]
@@ -83,15 +83,22 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_process_output() {
+    fn test_process_stdout() {
         let output = "GHCi, version 8.10.7: https://www.haskell.org/ghc/  :? for help
-Loaded GHCi configuration from /home/spore/development/haskell/ghci/.ghci
+Loaded GHCi configuration from /foo/bar
 1
 Const 1 :: Num c => Const c a
 Leaving GHCi.
 ";
         let expected = "1
 Const 1 :: Num c => Const c a";
+        assert_eq!(process_stdout_string(output), expected);
+
+        let output = "GHCi, version 9.2.4: https://www.haskell.org/ghc/  :? for help
+Loaded GHCi configuration from /foo/bar
+outputLeaving GHCi.
+";
+        let expected = "output";
         assert_eq!(process_stdout_string(output), expected);
     }
 }
