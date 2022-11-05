@@ -1,3 +1,2 @@
-#![feature(is_some_with, try_blocks, iter_intersperse)]
-pub mod ghci;
+#![feature(try_blocks, iter_intersperse)]
 pub mod interface;

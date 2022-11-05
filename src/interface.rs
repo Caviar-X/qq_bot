@@ -5,19 +5,20 @@ use proc_qq::re_exports::ricq::client::event::*;
 use proc_qq::re_exports::{bytes, reqwest, ricq_core::msg::elem::RQElem};
 use proc_qq::*;
 use rand::Rng;
-
 use std::fs::{create_dir_all, read, read_dir, remove_file, File};
 use std::io::Write;
 use std::path::Path;
-
-use crate::ghci::*;
-
+use pdqhash::image::*;
+use pdqhash::generate_pdq;
+use sorensen::distance;
 pub const IMAGE_DIR: &str = "images";
 
 fn compute_md5sum(buf: &[u8]) -> String {
     format!("{:x}", md5::compute(buf))
 }
-
+fn is_similiar(lhs : impl AsRef<Path>,rhs : impl AsRef<Path>) -> Result<bool> {
+    Ok(distance(&generate_pdq(&open(lhs)?).unwrap_or_default().0,&generate_pdq(&open(rhs)?).unwrap_or_default().0) >= 0.8)
+}
 fn is_image(buf: &[u8]) -> bool {
     fn check(start: &[u8], buf: &[u8]) -> bool {
         start == &buf[0..start.len()]
@@ -55,44 +56,6 @@ fn get_all_md5(image_dir: impl AsRef<Path>) -> Result<Vec<String>> {
         .collect())
 }
 
-async fn ghci(event: &GroupMessageEvent) -> Result<bool> {
-    let content = event.message_content();
-
-    let Some(expr) = content.get("!ghci".len()..) else {
-        event
-            .send_message_to_source("表达式为空或有不合法字符".parse_message_chain())
-            .await?;
-        return Ok(true)
-    };
-
-    let output = execute(expr.into())?;
-
-    match process_output(output) {
-        ExecutionResult::Output { stdout, stderr } => {
-            event
-                .send_message_to_source(stdout.trim().parse_message_chain())
-                .await?;
-            event
-                .send_message_to_source(stderr.trim().parse_message_chain())
-                .await?;
-        }
-        ExecutionResult::Timeout => {
-            event
-                .send_message_to_source("程序超时".parse_message_chain())
-                .await?;
-        }
-        ExecutionResult::LengthExceeded => {
-            event
-                .send_message_to_source(
-                    format!("输出大于等于{}B,不予展示", LIMIT_BYTE).parse_message_chain(),
-                )
-                .await?;
-        }
-        ExecutionResult::OtherError(e) => anyhow::bail!(e),
-    }
-
-    Ok(true)
-}
 
 #[event]
 async fn listen(event: &GroupMessageEvent) -> Result<bool> {
@@ -151,13 +114,15 @@ async fn listen(event: &GroupMessageEvent) -> Result<bool> {
                 .await?;
             return Ok(true);
         }
-        let mut f = File::create(format!(
+        let file_name = format!(
             "{}/{}/{}.image",
             IMAGE_DIR,
             event.inner.group_code,
             compute_md5sum(&buf)
-        ))?;
+        );
+        let mut f = File::create(file_name)?;
         f.write_all(&buf)?;
+
         event
             .send_message_to_source("添加成功".parse_message_chain())
             .await?;
@@ -229,10 +194,7 @@ async fn listen(event: &GroupMessageEvent) -> Result<bool> {
                 .send_message_to_source("出典成功".parse_message_chain())
                 .await?;
         }
-
         Ok(true)
-    } else if event.message_content().starts_with("!ghci") {
-        ghci(event).await
     } else {
         Ok(false)
     }
