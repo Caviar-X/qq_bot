@@ -12,12 +12,11 @@ async fn main() {
         .device(JsonFile("device.json".into()))
         .version(&MACOS)
         .show_rq(Some(ShowQR::OpenBySystem))
-        .modules(vec![module()]).build().await.unwrap();
-    client
-        .start()
+        .modules(vec![module()])
+        .build()
         .await
-        .unwrap()
         .unwrap();
+    client.start().await.unwrap().unwrap();
 }
 
 fn init_tracing_subscriber() {
