@@ -1,7 +1,6 @@
 use proc_qq::ClientBuilder;
 use proc_qq::DeviceSource::JsonFile;
 use proc_qq::{re_exports::ricq_core::protocol::version::*, *};
-use qq_bot::interface::module;
 use tracing::Level;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 #[tokio::main]
@@ -12,7 +11,10 @@ async fn main() {
         .device(JsonFile("device.json".into()))
         .version(&MACOS)
         .show_rq(Some(ShowQR::OpenBySystem))
-        .modules(vec![module()])
+        .modules(vec![
+            qq_bot::interface::module(),
+            qq_bot::blacklist::module(),
+        ])
         .build()
         .await
         .unwrap();

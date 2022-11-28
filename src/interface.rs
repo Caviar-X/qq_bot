@@ -1,26 +1,18 @@
 #![allow(clippy::from_over_into)]
 
+use crate::blacklist::{BlackList, PATH};
 use anyhow::Result;
-use pdqhash::generate_pdq;
-use pdqhash::image::*;
 use proc_qq::re_exports::ricq::client::event::*;
 use proc_qq::re_exports::{bytes, reqwest, ricq_core::msg::elem::RQElem};
 use proc_qq::*;
 use rand::Rng;
-use sorensen::distance;
 use std::fs::{create_dir_all, read, read_dir, remove_file, File};
 use std::io::Write;
 use std::path::Path;
 pub const IMAGE_DIR: &str = "images";
-
+pub const OWNER_UIN: i64 = 2327941682;
 fn compute_md5sum(buf: &[u8]) -> String {
     format!("{:x}", md5::compute(buf))
-}
-fn is_similiar(lhs: impl AsRef<Path>, rhs: impl AsRef<Path>) -> Result<bool> {
-    Ok(distance(
-        &generate_pdq(&open(lhs)?).unwrap_or_default().0,
-        &generate_pdq(&open(rhs)?).unwrap_or_default().0,
-    ) >= 0.8)
 }
 fn is_image(buf: &[u8]) -> bool {
     fn check(start: &[u8], buf: &[u8]) -> bool {
@@ -61,7 +53,13 @@ fn get_all_md5(image_dir: impl AsRef<Path>) -> Result<Vec<String>> {
 
 #[event]
 async fn listen(event: &GroupMessageEvent) -> Result<bool> {
+    let blacklist = BlackList::new(PATH)?;
     if event.message_content().contains("入典") {
+        if blacklist.contains(event.inner.group_code, event.from_uin()) {
+            event
+                .send_message_to_source("你已经被拉入黑名单,操作失败".parse_message_chain())
+                .await?;
+        }
         let message_chain = event.message_chain();
         let image_url = message_chain
             .0
@@ -138,11 +136,6 @@ async fn listen(event: &GroupMessageEvent) -> Result<bool> {
             event.inner.group_code,
             compute_md5sum(&buf)
         );
-        for i in walkdir::WalkDir::new(format!("{}/{}",IMAGE_DIR,event.inner.group_code)) {
-            if let Ok(true) = is_similiar(file_name.clone(),i?.into_path()) {
-                event.send_message_to_source("图库中有图片与此图片相似度达到80%以上，拒绝添加".parse_message_chain()).await?;
-            }
-        }
         let mut f = File::create(file_name)?;
         f.write_all(&buf)?;
 
@@ -195,9 +188,10 @@ async fn listen(event: &GroupMessageEvent) -> Result<bool> {
             .await?
             .get(&event.inner.from_uin)
             .is_some()
+            || event.inner.from_uin != OWNER_UIN
         {
             event
-                .send_message_to_source("只有管理员才可以出典".parse_message_chain())
+                .send_message_to_source("只有管理员/Owner才可以出典".parse_message_chain())
                 .await?;
             return Ok(true);
         }
