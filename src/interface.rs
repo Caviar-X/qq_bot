@@ -59,6 +59,7 @@ async fn listen(event: &GroupMessageEvent) -> Result<bool> {
             event
                 .send_message_to_source("你已经被拉入黑名单,操作失败".parse_message_chain())
                 .await?;
+            return Ok(true);
         }
         let message_chain = event.message_chain();
         let image_url = message_chain
