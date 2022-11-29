@@ -122,12 +122,12 @@ async fn blacklist(event: &GroupMessageEvent) -> Result<bool> {
             .unwrap_or_default()
         {
             "add" => {
-                blacklist.add(event.inner.group_code, event.from_uin())?;
+                blacklist.add(event.inner.group_code, at)?;
                 blacklist.rewrite(PATH)?;
                 return Ok(true);
             }
             "remove" => {
-                blacklist.remove(event.inner.group_code, event.from_uin());
+                blacklist.remove(event.inner.group_code, at);
                 blacklist.rewrite(PATH)?;
             }
             _ => {
