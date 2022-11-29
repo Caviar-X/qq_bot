@@ -189,7 +189,7 @@ async fn listen(event: &GroupMessageEvent) -> Result<bool> {
             .await?
             .get(&event.inner.from_uin)
             .is_some()
-            || event.inner.from_uin != OWNER_UIN
+            && event.inner.from_uin != OWNER_UIN
         {
             event
                 .send_message_to_source("只有管理员/Owner才可以出典".parse_message_chain())

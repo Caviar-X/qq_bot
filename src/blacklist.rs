@@ -2,13 +2,13 @@ use crate::interface::OWNER_UIN;
 use anyhow::Result;
 use proc_qq::re_exports::ricq_core::msg::elem::RQElem;
 use proc_qq::*;
-use std::collections::HashMap;
-use std::fs::{read_to_string, File};
+use std::collections::{HashMap, HashSet};
+use std::fs::{read_to_string, File, OpenOptions};
 use std::io::Write;
 use std::path::PathBuf;
 pub const PATH: &'static str = ".blacklist";
 pub struct BlackList {
-    pub inner: HashMap<i64, Vec<i64>>,
+    pub inner: HashMap<i64, HashSet<i64>>,
 }
 impl BlackList {
     pub fn new(path: impl Into<PathBuf>) -> Result<Self> {
@@ -19,7 +19,7 @@ impl BlackList {
                 inner: HashMap::new(),
             });
         }
-        let mut inner: HashMap<i64, Vec<i64>> = HashMap::new();
+        let mut inner: HashMap<i64, HashSet<i64>> = HashMap::new();
         for i in read_to_string(path)?.lines() {
             let (group, uin) = i
                 .trim()
@@ -29,10 +29,12 @@ impl BlackList {
             let (group, uin) = (group?, uin?);
             match inner.contains_key(&group) {
                 true => {
-                    inner.get_mut(&group).unwrap().push(uin);
+                    inner.get_mut(&group).unwrap().insert(uin);
                 }
                 false => {
-                    inner.insert(group, vec![uin]);
+                    let mut hs = HashSet::new();
+                    hs.insert(uin);
+                    inner.insert(group, hs);
                 }
             }
         }
@@ -41,10 +43,12 @@ impl BlackList {
     pub fn add(&mut self, group: i64, uin: i64) -> Result<()> {
         match self.inner.contains_key(&group) {
             true => {
-                self.inner.get_mut(&group).unwrap().push(uin);
+                self.inner.get_mut(&group).unwrap().insert(uin);
             }
             false => {
-                self.inner.insert(group, vec![uin]);
+                let mut hs = HashSet::new();
+                hs.insert(uin);
+                self.inner.insert(group, hs);
             }
         }
         Ok(())
@@ -60,15 +64,12 @@ impl BlackList {
     }
     pub fn remove(&mut self, group: i64, uin: i64) {
         if self.inner.contains_key(&group) {
-            let v = self.inner.get_mut(&group).unwrap();
-            if let Some(a) = v.iter().position(|&x| x == uin) {
-                v.remove(a);
-            }
+            self.inner.get_mut(&group).unwrap().remove(&uin);
         }
     }
     pub fn rewrite(&self, path: impl Into<PathBuf>) -> Result<()> {
         let path = path.into();
-        let mut file = File::open(path)?;
+        let mut file = OpenOptions::new().write(true).truncate(true).open(path)?;
         for i in self.inner.iter() {
             for j in i.1 {
                 writeln!(file, "{} {}", i.0, j)?;
@@ -82,29 +83,30 @@ async fn blacklist(event: &GroupMessageEvent) -> Result<bool> {
     let chain = &event.message_chain().0;
 
     let mut blacklist = BlackList::new(PATH)?;
-    let mut at = 0;
-    for i in chain {
-        if let RQElem::At(a) = i.clone().into() {
-            at = a.target;
-        }
-    }
-    if at == 0 {
-        if let Some(a) = event.message_content().split_whitespace().nth(2) {
-            at = a.parse::<i64>().unwrap_or_default();
-        } else {
-            event
-                .send_message_to_source("未找到at/qq号".parse_message_chain())
-                .await?;
-        }
-    }
+
     if event.message_content().starts_with("!blacklist") {
+        let mut at = 0;
+        for i in chain {
+            if let RQElem::At(a) = i.clone().into() {
+                at = a.target;
+            }
+        }
+        if at == 0 {
+            if let Some(a) = event.message_content().split_whitespace().nth(2) {
+                at = a.parse::<i64>().unwrap_or_default();
+            } else {
+                event
+                    .send_message_to_source("未找到at/qq号".parse_message_chain())
+                    .await?;
+            }
+        }
         if !event
             .client
             .get_group_admin_list(event.inner.group_code)
             .await?
             .get(&event.inner.from_uin)
             .is_some()
-            || event.inner.from_uin != OWNER_UIN
+            && event.inner.from_uin != OWNER_UIN
         {
             event
                 .send_message_to_source(

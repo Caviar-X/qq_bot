@@ -14,7 +14,7 @@ async fn main() {
         .modules(vec![
             qq_bot::interface::module(),
             qq_bot::blacklist::module(),
-            qq_bot::heartbeat::module()
+            qq_bot::heartbeat::module(),
         ])
         .build()
         .await
