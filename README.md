@@ -5,7 +5,7 @@
 目前支持的功能有：
 
 1. 添加/随机图片(不支持回复添加,貌似是协议的问题)
-2. 在线ghci功能(目前无docker支持)
+2. 黑名单
 
 ## 目前在的群
 
@@ -29,28 +29,16 @@ cargo build --release
 
 ```bash
 chmod +x qq_bot #提权，若有此权限不用执行
-./qq_bot --uin QQ号 --password 密码
+./qq_bot
 ```
 
-第一次运行需拿手机扫码或滑块
+需拿手机扫码或滑块
 
 关于滑块请遵循proc_qq的步骤
 
-~~使用 GHCi 功能时请确保 GHCi 的 `prompt` 和 `prompt-cont` 设置为空。
-可以通过载入对应的 `.ghci` 文件实现，例如：~~
-
-```
-:set prompt ""
-:set prompt-cont ""
-```
-~~具体使用方式请查阅 [GHCi 文档](https://downloads.haskell.org/ghc/latest/docs/users_guide/ghci.html#the-ghci-and-haskeline-files)~~
-**由于安全问题考虑将Ghci功能下架**
-
 ## 开源协议
 
-根据AGPL协议开源(因为`ricq`也是AGPL协议)
-
-Note: 最近好像要更改至MPL or MIT，到时候也会跟着改变
+MPL协议
 
 ## 作者
 

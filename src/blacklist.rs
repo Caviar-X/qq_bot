@@ -93,11 +93,13 @@ async fn blacklist(event: &GroupMessageEvent) -> Result<bool> {
         }
         if at == 0 {
             if let Some(a) = event.message_content().split_whitespace().nth(2) {
-                at = a.parse::<i64>().unwrap_or_default();
-            } else {
-                event
-                    .send_message_to_source("未找到at/qq号".parse_message_chain())
-                    .await?;
+                if let Ok(b) = a.parse::<i64>() {
+                    at = b;
+                } else {
+                    event
+                        .send_message_to_source("未找到at/qq号".parse_message_chain())
+                        .await?;
+                }
             }
         }
         if !event
