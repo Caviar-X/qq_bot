@@ -20,5 +20,5 @@ async fn heartbeat(event: &GroupMessageEvent) -> Result<bool> {
     Ok(false)
 }
 pub fn module() -> Module {
-    module!("test", "t", heartbeat)
+    module!("heartbeat", "h", heartbeat)
 }
